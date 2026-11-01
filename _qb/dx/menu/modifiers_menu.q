@@ -97,6 +97,16 @@ modifier_options = [
 		Description = "Toggle whammy pitch shifting."
 	}
 	{
+		Name = "P1 Input Mode"
+		Id = P1_INPUT_MODE
+		Description = "PC only. Auto: guitars play as guitars. Gamepad: P1's controller plays like a gamepad (no strumming)."
+	}
+	{
+		Name = "P2 Input Mode"
+		Id = P2_INPUT_MODE
+		Description = "PC only. Auto: guitars play as guitars. Gamepad: P2's controller plays like a gamepad (no strumming)."
+	}
+	{
 		Name = "Track Muting"
 		Id = TRACK_MUTING
 		Description = "Toggle track muting on miss."
@@ -535,6 +545,12 @@ script menu_dx_mods_select
 	transparent_highway_int = <transparent_highway>
 	CastToInteger transparent_highway_int
 	switch (($modifier_options [$selected_modifier_index].Id))
+		case P1_INPUT_MODE
+			dx_cycle_player_input_mode \{Player = 1}
+			SoundEvent \{Event = CheckBox_Check_SFX}
+		case P2_INPUT_MODE
+			dx_cycle_player_input_mode \{Player = 2}
+			SoundEvent \{Event = CheckBox_Check_SFX}
 		case BLACK_HIGHWAY
 			if (<black_highway> = 0)
 			 	SetGlobalTags user_options Params = {black_highway = 1}
@@ -1238,6 +1254,14 @@ script menu_dx_mods_setprop
 	transparent_highway_int = (<transparent_highway> * 100)
 	CastToInteger transparent_highway_int
 	switch (<mod_id>)
+		case P1_INPUT_MODE
+			dx_input_mode_text \{Player = 1}
+			FormatText TextName = mod_text '%n: %m' n = ($modifier_options [<Index>].Name) m = <text>
+			<Element_Id> :SetProps text = <mod_text>
+		case P2_INPUT_MODE
+			dx_input_mode_text \{Player = 2}
+			FormatText TextName = mod_text '%n: %m' n = ($modifier_options [<Index>].Name) m = <text>
+			<Element_Id> :SetProps text = <mod_text>
 		case BLACK_HIGHWAY
 			if (<black_highway> = 1)
 			 	FormatText TextName = mod_text '%n: On' n = ($modifier_options [<Index>].Name)

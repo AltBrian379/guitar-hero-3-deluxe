@@ -3,3 +3,4 @@ _qb/patches.q
 _qb/lysix.q
 out/
 .DS_Store
+native/*/build/
