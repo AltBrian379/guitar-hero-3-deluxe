@@ -4,11 +4,34 @@
 // usage: uitest.exe [path\to\xinput1_3.dll] [seconds_of_live_output]
 
 #include <windows.h>
+#include <objbase.h>
+#define DIRECTINPUT_VERSION 0x0800
+#include <dinput.h>
 
 #include <cstdio>
 #include <cstdlib>
 
 #include "../src/xinput_types.h"
+
+// Called through this exe's import table, exactly like GH3 does, so the proxy's
+// DirectInput hook (an import-table patch of the host exe) is exercised too.
+static BOOL CALLBACK PrintDevice(const DIDEVICEINSTANCEW* d, void*) {
+    wprintf(L"  DirectInput sees %04X:%04X \"%s\"\n", LOWORD(d->guidProduct.Data1), HIWORD(d->guidProduct.Data1),
+            d->tszProductName);
+    return DIENUM_CONTINUE;
+}
+
+static void ListDirectInputControllers() {
+    IDirectInput8W* di = nullptr;
+    if (FAILED(DirectInput8Create(GetModuleHandleW(nullptr), DIRECTINPUT_VERSION, IID_IDirectInput8W,
+                                  reinterpret_cast<void**>(&di), nullptr))) {
+        printf("DirectInput8Create failed\n");
+        return;
+    }
+    printf("DirectInput game controllers:\n");
+    di->EnumDevices(DI8DEVCLASS_GAMECTRL, PrintDevice, nullptr, DIEDFL_ATTACHEDONLY);
+    di->Release();
+}
 
 using namespace uinput;
 
@@ -46,6 +69,8 @@ int wmain(int argc, wchar_t** argv) {
         return 1;
     }
 
+    ListDirectInputControllers();
+    Sleep(300);  // let a freshly opened HID guitar deliver its first report
     for (DWORD i = 0; i < kMaxSlots; ++i) {
         XCapabilities caps = {};
         DWORD r = getCaps(i, kFlagGamepad, &caps);

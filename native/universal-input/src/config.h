@@ -15,6 +15,9 @@ enum class SlotMode {
 struct Config {
     bool enabled = true;
     bool log = true;
+    // Hide controllers that have a [Device.*] mapping from GH3's DirectInput list, so they
+    // only appear once (as the virtual XInput guitar).
+    bool hideFromDirectInput = true;
     SlotMode slotMode[kMaxSlots] = {SlotMode::Auto, SlotMode::Auto, SlotMode::Auto, SlotMode::Auto};
 };
 

@@ -24,6 +24,7 @@ Config LoadConfig(const std::wstring& iniPath) {
     Config c;
     c.enabled = ReadBool(iniPath, L"General", L"Enabled", c.enabled);
     c.log = ReadBool(iniPath, L"General", L"Log", c.log);
+    c.hideFromDirectInput = ReadBool(iniPath, L"General", L"HideFromDirectInput", c.hideFromDirectInput);
     for (DWORD i = 0; i < kMaxSlots; ++i) {
         wchar_t section[16];
         swprintf_s(section, L"Slot%lu", i + 1);
