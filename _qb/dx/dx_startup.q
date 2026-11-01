@@ -40,6 +40,7 @@ script load_dx_settings
 	if (<ondisp_dispfps_text> = 1)
 		enable_dispfps
 	endif
+	dx_load_input_modes
 	reset_highway_params
 	set_highway_angle
 	if (<hw_angle> = 0 || <hw_angle> = "GH3_2P")

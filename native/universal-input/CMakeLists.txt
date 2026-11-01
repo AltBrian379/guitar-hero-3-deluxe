@@ -27,6 +27,7 @@ add_library(xinput1_3 SHARED
     src/real_xinput.cpp
     src/hid_manager.cpp
     src/dinput_hook.cpp
+    src/game_bridge.cpp
     src/exports.def
 )
 target_link_libraries(xinput1_3 PRIVATE uinput_core)

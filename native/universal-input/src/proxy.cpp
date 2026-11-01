@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "dinput_hook.h"
+#include "game_bridge.h"
 #include "hid_manager.h"
 #include "log.h"
 #include "real_xinput.h"
@@ -29,8 +30,17 @@ INIT_ONCE g_initOnce = INIT_ONCE_STATIC_INIT;
 Config g_config;
 RealXInput g_real;
 HidManager g_hid;
+GameBridge g_bridge;
 bool g_ready = false;
 bool g_dinputHooked = false;
+
+// Mode-change handling. If GH3 isn't re-reading capabilities for a slot, a changed mode is
+// applied by briefly reporting that slot as unplugged, which makes GH3 re-detect it.
+constexpr ULONGLONG kCapsPollWindowMs = 1000;
+constexpr ULONGLONG kReconnectMs = 400;
+SlotMode g_effectiveMode[kMaxSlots] = {SlotMode::Auto, SlotMode::Auto, SlotMode::Auto, SlotMode::Auto};
+ULONGLONG g_lastCapsQuery[kMaxSlots] = {};
+ULONGLONG g_forceUnplugUntil[kMaxSlots] = {};
 
 // Last logged state per slot, so the log records changes instead of every poll.
 struct SlotLogState {
@@ -57,7 +67,11 @@ BOOL CALLBACK InitOnce(PINIT_ONCE, PVOID, PVOID*) {
     if (g_config.log) LogOpen((dir + L"\\gh3_universal_input.log").c_str());
     Log("GH3 Universal Input starting (enabled=%d, hideFromDirectInput=%d, DirectInput hook %s)",
         g_config.enabled ? 1 : 0, g_config.hideFromDirectInput ? 1 : 0, g_dinputHooked ? "installed" : "not installed");
-    for (DWORD i = 0; i < kMaxSlots; ++i) Log("  slot %lu mode: %s", i + 1, SlotModeName(g_config.slotMode[i]));
+    for (DWORD i = 0; i < kMaxSlots; ++i) {
+        Log("  slot %lu mode: %s", i + 1, SlotModeName(g_config.slotMode[i]));
+        g_effectiveMode[i] = g_config.slotMode[i];
+    }
+    if (g_config.enabled) g_bridge.Init();
     g_ready = LoadRealXInput(g_real);
     if (!g_ready) Log("ERROR: no system XInput DLL could be loaded; real XInput controllers will read as disconnected");
     if (g_config.enabled) g_hid.Start(LoadProfiles(ini));
@@ -70,9 +84,36 @@ bool IsGuitarSubType(BYTE subType) {
     return subType == kSubGuitar || subType == kSubGuitarAlternate || subType == kSubGuitarBass;
 }
 
+// In-game "P1/P2 Input Mode" (Guitar/Gamepad) wins over the INI; "Auto" defers to the INI.
+SlotMode ComputeMode(DWORD slot) {
+    switch (g_bridge.ModeForSlot(slot)) {
+        case GameInputMode::Guitar: return SlotMode::Guitar;
+        case GameInputMode::Gamepad: return SlotMode::Gamepad;
+        default: return g_config.slotMode[slot];
+    }
+}
+
+// Called at the top of every state/capabilities query (on GH3's input thread).
+void UpdateModes() {
+    if (!g_config.enabled) return;
+    g_bridge.Refresh();
+    const ULONGLONG now = GetTickCount64();
+    for (DWORD s = 0; s < kMaxSlots; ++s) {
+        const SlotMode mode = ComputeMode(s);
+        if (mode == g_effectiveMode[s]) continue;
+        const bool gamePolling = now - g_lastCapsQuery[s] < kCapsPollWindowMs;
+        Log("slot %lu: mode %s -> %s%s", s + 1, SlotModeName(g_effectiveMode[s]), SlotModeName(mode),
+            gamePolling ? "" : " (reconnecting so GH3 re-detects it)");
+        if (!gamePolling) g_forceUnplugUntil[s] = now + kReconnectMs;
+        g_effectiveMode[s] = mode;
+    }
+}
+
+bool ForcedUnplugged(DWORD slot) { return GetTickCount64() < g_forceUnplugUntil[slot]; }
+
 BYTE ResolveSubType(DWORD slot, BYTE realSubType) {
     if (!g_config.enabled) return realSubType;
-    switch (g_config.slotMode[slot]) {
+    switch (g_effectiveMode[slot]) {
         case SlotMode::Guitar: return kSubGuitarAlternate;
         case SlotMode::Gamepad: return kSubGamepad;
         case SlotMode::Auto: break;
@@ -124,6 +165,9 @@ DWORD WINAPI Proxy_XInputGetCapabilities(DWORD userIndex, DWORD flags, XCapabili
     EnsureInit();
     if (!caps || userIndex >= kMaxSlots) return ERROR_BAD_ARGUMENTS;
     (void)flags;  // queried without XINPUT_FLAG_GAMEPAD; the reported subtype is decided here
+    UpdateModes();
+    g_lastCapsQuery[userIndex] = GetTickCount64();
+    if (ForcedUnplugged(userIndex)) return ERROR_DEVICE_NOT_CONNECTED;
 
     XCapabilities real = {};
     DWORD result = g_ready ? g_real.getCapabilities(userIndex, 0, &real) : ERROR_DEVICE_NOT_CONNECTED;
@@ -147,6 +191,8 @@ DWORD WINAPI Proxy_XInputGetCapabilities(DWORD userIndex, DWORD flags, XCapabili
 DWORD WINAPI Proxy_XInputGetState(DWORD userIndex, XState* state) {
     EnsureInit();
     if (!state || userIndex >= kMaxSlots) return ERROR_BAD_ARGUMENTS;
+    UpdateModes();
+    if (ForcedUnplugged(userIndex)) return ERROR_DEVICE_NOT_CONNECTED;
     DWORD result = g_ready ? g_real.getState(userIndex, state) : ERROR_DEVICE_NOT_CONNECTED;
     if (result == ERROR_SUCCESS) return result;
     if (g_config.enabled && g_hid.Query(userIndex, state)) return ERROR_SUCCESS;
@@ -156,6 +202,8 @@ DWORD WINAPI Proxy_XInputGetState(DWORD userIndex, XState* state) {
 DWORD WINAPI Proxy_XInputGetStateEx(DWORD userIndex, XState* state) {
     EnsureInit();
     if (!state || userIndex >= kMaxSlots) return ERROR_BAD_ARGUMENTS;
+    UpdateModes();
+    if (ForcedUnplugged(userIndex)) return ERROR_DEVICE_NOT_CONNECTED;
     DWORD result = ERROR_DEVICE_NOT_CONNECTED;
     if (g_ready) result = g_real.getStateEx ? g_real.getStateEx(userIndex, state) : g_real.getState(userIndex, state);
     if (result == ERROR_SUCCESS) return result;

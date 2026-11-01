@@ -33,4 +33,10 @@
 * Random song select in Quickplay by pressing START
 * Multiplayer Vocalist modifier that enables the vocalist in multiplayer! (The different singers currently do not work. I.E. Bret Michaels, and the Female singer)
 
+## PC: Universal Guitar Input
+* Any XInput guitar (Rock Band, bass, third-party) is recognised as a guitar, while regular gamepads behave as before
+* Non-XInput guitars (Santroller in HID mode, PS3/Wii adapters, Raspberry Pi builds) work after a one-time setup with `gh3-guitar-setup.exe`
+* "P1 / P2 Input Mode" modifiers to force a controller to play as a guitar or a gamepad
+* No x360ce needed. See [GH3 Universal Input](../native/universal-input/README.md)
+
 # 👉 [Download Here!](https://github.com/nsneverhax/guitar-hero-3-deluxe#%EF%B8%8F-what-youll-need)

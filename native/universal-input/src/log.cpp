@@ -1,6 +1,8 @@
 #include "log.h"
 
 #include <windows.h>
+#include <share.h>
+
 #include <cstdarg>
 #include <cstdio>
 
@@ -13,7 +15,8 @@ SRWLOCK g_lock = SRWLOCK_INIT;
 void LogOpen(const wchar_t* path) {
     if (!path) return;
     AcquireSRWLockExclusive(&g_lock);
-    if (!g_file) _wfopen_s(&g_file, path, L"w");
+    // Shared for reading, so the log can be opened while the game is running.
+    if (!g_file) g_file = _wfsopen(path, L"w", _SH_DENYWR);
     ReleaseSRWLockExclusive(&g_lock);
 }
 

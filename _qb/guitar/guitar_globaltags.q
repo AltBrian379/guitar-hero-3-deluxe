@@ -67,6 +67,10 @@ script setup_user_option_tags
             song_select_stats = 0
             hw_angle = 0
             highway_length = 0
+			dx_input_mode_device_0 = 0
+			dx_input_mode_device_1 = 0
+			dx_input_mode_device_2 = 0
+			dx_input_mode_device_3 = 0
 		}}
 endscript
 default_songtagswithdifficulty = {

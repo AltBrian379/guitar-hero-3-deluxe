@@ -3,6 +3,7 @@ import shutil
 import sys
 import platform
 import argparse
+import subprocess
 
 def main():
 
@@ -55,8 +56,9 @@ def main():
 			shutil.copy2(platform_item, dest_item)
 
 	# compile q scripts to qb and build pak file using honeycomb
-	command = f"{os.path.abspath(os.path.join('dependencies', platform.system().lower(), 'Honeycomb-CLI', 'Honeycomb'))} pak compile {os.path.abspath('_qb')} -g {game_name} -c {args.platform}"
-	os.system(command)
+	# argument list (not a shell string) so checkouts in paths with spaces work
+	honeycomb = os.path.abspath(os.path.join('dependencies', platform.system().lower(), 'Honeycomb-CLI', 'Honeycomb'))
+	subprocess.run([honeycomb, "pak", "compile", os.path.abspath('_qb'), "-g", game_name, "-c", args.platform])
 
 	_qb_pak = f"_qb.pak.{plat_extension}"
 	if args.platform == "ps3": # linux fix when building for ps3
